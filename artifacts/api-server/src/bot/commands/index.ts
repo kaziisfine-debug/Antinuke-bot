@@ -15,6 +15,7 @@ import {
   isTrustedUser, checkAction,
 } from "../systems/antinuke.js";
 import { activateLockdown, deactivateLockdown } from "../systems/antiraid.js";
+import { captureSnapshot, recoverDeletedChannel, recoverDeletedRole } from "../systems/recovery.js";
 import { sendTicketPanel } from "../systems/tickets.js";
 import { startGiveaway, rerollGiveaway } from "../systems/giveaway.js";
 import {
@@ -193,6 +194,13 @@ const commands = [
   // ── UNBYPSSABLE ROLE ──────────────────────────────────────────────────────
   new SlashCommandBuilder().setName("protect").setDescription("Protect a user with an unbypssable role")
     .addUserOption(o => o.setName("user").setDescription("User to protect").setRequired(true)),
+
+  // ── RECOVER ───────────────────────────────────────────────────────────────
+  new SlashCommandBuilder().setName("recover").setDescription("Recover server from snapshot after a nuke")
+    .addSubcommand(s => s.setName("channels").setDescription("Restore all deleted channels from last snapshot"))
+    .addSubcommand(s => s.setName("roles").setDescription("Restore all deleted roles from last snapshot"))
+    .addSubcommand(s => s.setName("all").setDescription("Restore all deleted channels AND roles"))
+    .addSubcommand(s => s.setName("snapshot").setDescription("Take a fresh snapshot of the current server state")),
 
   // ── BOTINFO ───────────────────────────────────────────────────────────────
   new SlashCommandBuilder().setName("botinfo").setDescription("Show bot information"),
@@ -728,6 +736,73 @@ export async function handleCommand(interaction: ChatInputCommandInteraction): P
           await updateGuildSettings(interaction.guild.id, { verificationEnabled: false });
           await interaction.reply({ embeds: [toggleEmbed("🔐  Verification", false)] });
         }
+        break;
+      }
+
+      // ── RECOVER ──────────────────────────────────────────────────────────
+      case "recover": {
+        if (!await requireTrusted(interaction)) {
+          await interaction.reply({ embeds: [errorEmbed("Only trusted users or owners can use recovery.")], ephemeral: true }); return;
+        }
+        const sub = interaction.options.getSubcommand();
+        await interaction.deferReply();
+
+        if (sub === "snapshot") {
+          await captureSnapshot(interaction.guild);
+          await interaction.editReply({ embeds: [successEmbed("Snapshot taken of the current server state.", "📸  Snapshot Updated")] });
+          break;
+        }
+
+        const settings = await getGuildSettings(interaction.guild.id);
+        if (!settings.snapshotData) {
+          await interaction.editReply({ embeds: [errorEmbed("No snapshot found. Use `/recover snapshot` first to save the current server state.", "❌  No Snapshot")] });
+          break;
+        }
+
+        const snapshot = settings.snapshotData as unknown as {
+          channels: Array<{ id: string; name: string }>;
+          roles: Array<{ id: string; name: string }>;
+          capturedAt: number;
+        };
+
+        const doChannels = sub === "channels" || sub === "all";
+        const doRoles = sub === "roles" || sub === "all";
+
+        let restoredChannels = 0;
+        let restoredRoles = 0;
+
+        if (doChannels) {
+          for (const ch of snapshot.channels) {
+            if (!interaction.guild.channels.cache.has(ch.id)) {
+              await recoverDeletedChannel(interaction.guild, ch.id);
+              restoredChannels++;
+            }
+          }
+        }
+
+        if (doRoles) {
+          for (const role of snapshot.roles) {
+            if (!interaction.guild.roles.cache.has(role.id)) {
+              await recoverDeletedRole(interaction.guild, role.id);
+              restoredRoles++;
+            }
+          }
+        }
+
+        const snapshotAge = Math.floor((Date.now() - snapshot.capturedAt) / 60000);
+        const lines: string[] = [];
+        if (doChannels) lines.push(`**Channels restored:** \`${restoredChannels}\``);
+        if (doRoles) lines.push(`**Roles restored:** \`${restoredRoles}\``);
+        lines.push(`**Snapshot age:** \`${snapshotAge}m ago\``);
+
+        await interaction.editReply({
+          embeds: [new EmbedBuilder()
+            .setColor(restoredChannels + restoredRoles > 0 ? 0x57f287 : 0x5865f2)
+            .setTitle("Recovery Complete")
+            .setDescription(lines.join("\n"))
+            .setFooter({ text: "Shonargaon Antinuke  ·  Recovery", iconURL: BRAND.icon ?? undefined })
+            .setTimestamp()],
+        });
         break;
       }
 
