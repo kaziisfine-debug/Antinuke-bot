@@ -59,8 +59,8 @@ export function startBot(): void {
   client.on(Events.GuildBanRemove, onGuildBanRemove);
   client.on(Events.ChannelCreate, onChannelCreate);
   client.on(Events.ChannelDelete, onChannelDelete);
-  client.on(Events.RoleCreate, onRoleCreate);
-  client.on(Events.RoleDelete, onRoleDelete);
+  client.on(Events.GuildRoleCreate, onRoleCreate);
+  client.on(Events.GuildRoleDelete, onRoleDelete);
   client.on(Events.InteractionCreate, onInteractionCreate);
   client.on(Events.MessageReactionAdd, onMessageReactionAdd);
   client.on(Events.MessageReactionRemove, onMessageReactionRemove);

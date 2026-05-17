@@ -1,6 +1,13 @@
-import { Guild, ChannelType, PermissionOverwrites, CategoryChannel, TextChannel, VoiceChannel, Role, GuildChannel } from "discord.js";
+import { Guild, ChannelType, CategoryChannel, TextChannel, VoiceChannel, GuildChannel } from "discord.js";
 import { getGuildSettings, updateGuildSettings } from "../database.js";
 import { logger } from "../../lib/logger.js";
+
+// Thread channel types — they lack rawPosition / permissionOverwrites
+const THREAD_TYPES = new Set([
+  ChannelType.PublicThread,
+  ChannelType.PrivateThread,
+  ChannelType.AnnouncementThread,
+]);
 
 interface ChannelSnapshot {
   id: string;
@@ -34,23 +41,28 @@ interface GuildSnapshot {
 
 export async function captureSnapshot(guild: Guild): Promise<void> {
   try {
-    const channels: ChannelSnapshot[] = guild.channels.cache.map(ch => ({
-      id: ch.id,
-      name: ch.name,
-      type: ch.type,
-      position: ch.rawPosition,
-      parentId: ch.parentId,
-      topic: (ch as TextChannel).topic ?? null,
-      nsfw: (ch as TextChannel).nsfw ?? false,
-      permissionOverwrites: ch.permissionOverwrites?.cache.map(po => ({
-        id: po.id,
-        type: po.type,
-        allow: po.allow.bitfield.toString(),
-        deny: po.deny.bitfield.toString(),
-      })) ?? [],
-      bitrate: (ch as VoiceChannel).bitrate,
-      userLimit: (ch as VoiceChannel).userLimit,
-    }));
+    const channels: ChannelSnapshot[] = guild.channels.cache
+      .filter(ch => !THREAD_TYPES.has(ch.type))
+      .map(ch => {
+        const gc = ch as GuildChannel;
+        return {
+          id: gc.id,
+          name: gc.name,
+          type: gc.type,
+          position: gc.rawPosition,
+          parentId: gc.parentId,
+          topic: (gc as TextChannel).topic ?? null,
+          nsfw: (gc as TextChannel).nsfw ?? false,
+          permissionOverwrites: gc.permissionOverwrites.cache.map((po) => ({
+            id: po.id,
+            type: po.type,
+            allow: po.allow.bitfield.toString(),
+            deny: po.deny.bitfield.toString(),
+          })),
+          bitrate: (gc as VoiceChannel).bitrate,
+          userLimit: (gc as VoiceChannel).userLimit,
+        };
+      });
 
     const roles: RoleSnapshot[] = guild.roles.cache
       .filter(r => r.id !== guild.id)
@@ -71,7 +83,7 @@ export async function captureSnapshot(guild: Guild): Promise<void> {
       capturedAt: Date.now(),
     };
 
-    await updateGuildSettings(guild.id, { snapshotData: snapshot as any });
+    await updateGuildSettings(guild.id, { snapshotData: snapshot as unknown as Record<string, unknown> });
     logger.info({ guildId: guild.id, channels: channels.length, roles: roles.length }, "Guild snapshot captured");
   } catch (err) {
     logger.error({ err, guildId: guild.id }, "Failed to capture guild snapshot");

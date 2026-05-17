@@ -94,7 +94,7 @@ export async function logBanAdd(guild: Guild, user: User): Promise<void> {
 
   let reason = "No reason provided";
   try {
-    const logs = await guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberBan });
+    const logs = await guild.fetchAuditLogs({ limit: 1, type: AuditLogEvent.MemberBanAdd });
     const entry = logs.entries.find(e => (e.target as User)?.id === user.id);
     if (entry?.reason) reason = entry.reason;
   } catch {}

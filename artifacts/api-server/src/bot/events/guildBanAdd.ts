@@ -7,7 +7,7 @@ export async function onGuildBanAdd(ban: GuildBan): Promise<void> {
   try {
     await logBanAdd(ban.guild, ban.user);
 
-    const executorId = await getAuditLogUser(ban.guild, AuditLogEvent.MemberBan);
+    const executorId = await getAuditLogUser(ban.guild, AuditLogEvent.MemberBanAdd);
     if (!executorId || executorId === ban.guild.client.user?.id) return;
 
     await checkAction(ban.guild, executorId, "ban");
