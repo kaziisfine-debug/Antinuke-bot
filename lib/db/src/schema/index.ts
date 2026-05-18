@@ -117,17 +117,40 @@ export const tickets = pgTable("tickets", {
 export const logConfig = pgTable("log_config", {
   guildId: text("guild_id").primaryKey(),
   logChannelId: text("log_channel_id"),
+  // ── Messages ──
   messageDelete: boolean("message_delete").default(true).notNull(),
   messageEdit: boolean("message_edit").default(true).notNull(),
+  // ── Members ──
   memberJoin: boolean("member_join").default(true).notNull(),
   memberLeave: boolean("member_leave").default(true).notNull(),
   memberBan: boolean("member_ban").default(true).notNull(),
   memberUnban: boolean("member_unban").default(true).notNull(),
+  memberKick: boolean("member_kick").default(true).notNull(),
+  memberTimeout: boolean("member_timeout").default(true).notNull(),
+  memberRoleChange: boolean("member_role_change").default(true).notNull(),
+  nicknameChange: boolean("nickname_change").default(true).notNull(),
+  // ── Voice ──
+  voiceJoin: boolean("voice_join").default(true).notNull(),
+  voiceLeave: boolean("voice_leave").default(true).notNull(),
+  voiceMove: boolean("voice_move").default(true).notNull(),
+  // ── Roles ──
   roleCreate: boolean("role_create").default(true).notNull(),
   roleDelete: boolean("role_delete").default(true).notNull(),
+  roleUpdate: boolean("role_update").default(true).notNull(),
+  // ── Channels ──
   channelCreate: boolean("channel_create").default(true).notNull(),
   channelDelete: boolean("channel_delete").default(true).notNull(),
-  nicknameChange: boolean("nickname_change").default(false).notNull(),
+  channelUpdate: boolean("channel_update").default(true).notNull(),
+  // ── Server ──
+  serverUpdate: boolean("server_update").default(true).notNull(),
+  // ── Invites & Threads ──
+  inviteCreate: boolean("invite_create").default(true).notNull(),
+  inviteDelete: boolean("invite_delete").default(true).notNull(),
+  threadCreate: boolean("thread_create").default(true).notNull(),
+  // ── Emoji / Sticker ──
+  emojiUpdate: boolean("emoji_update").default(true).notNull(),
+  // ── Security ──
+  antinukeAction: boolean("antinuke_action").default(true).notNull(),
 });
 
 export const giveaways = pgTable("giveaways", {

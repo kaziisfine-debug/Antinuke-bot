@@ -1,6 +1,6 @@
-import { GuildMember, PartialGuildMember } from "discord.js";
+import { GuildMember, PartialGuildMember, Role } from "discord.js";
 import { getAllUnbypssableRoles } from "../database.js";
-import { logNicknameChange } from "../systems/logging.js";
+import { logNicknameChange, logMemberTimeout, logMemberRoleChange } from "../systems/logging.js";
 import { UNBYPSSABLE_ROLE_NAME } from "../config.js";
 import { logger } from "../../lib/logger.js";
 
@@ -20,11 +20,40 @@ export async function onGuildMemberUpdate(oldMember: GuildMember | PartialGuildM
       }
     }
 
+    const old = oldMember as GuildMember;
+
     // Log nickname change
-    const oldNick = (oldMember as GuildMember).nickname ?? null;
+    const oldNick = old.nickname ?? null;
     const newNick = newMember.nickname ?? null;
     if (oldNick !== newNick) {
       await logNicknameChange(newMember, oldNick, newNick);
+    }
+
+    // Log timeout changes
+    const oldTimeout = old.communicationDisabledUntil ?? null;
+    const newTimeout = newMember.communicationDisabledUntil ?? null;
+    const timeoutChanged =
+      (oldTimeout === null && newTimeout !== null) ||
+      (oldTimeout !== null && newTimeout === null);
+    if (timeoutChanged) {
+      await logMemberTimeout(newMember, newTimeout);
+    }
+
+    // Log role changes
+    if (!old.partial) {
+      const oldRoleIds = new Set(old.roles.cache.keys());
+      const newRoleIds = new Set(newMember.roles.cache.keys());
+      const addedRoles: Role[] = [];
+      const removedRoles: Role[] = [];
+      for (const [id, role] of newMember.roles.cache) {
+        if (!oldRoleIds.has(id)) addedRoles.push(role);
+      }
+      for (const [id, role] of old.roles.cache) {
+        if (!newRoleIds.has(id)) removedRoles.push(role);
+      }
+      if (addedRoles.length || removedRoles.length) {
+        await logMemberRoleChange(newMember, addedRoles, removedRoles);
+      }
     }
   } catch (err) {
     logger.error({ err }, "guildMemberUpdate error");

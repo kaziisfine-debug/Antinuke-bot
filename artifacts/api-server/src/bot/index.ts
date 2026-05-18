@@ -22,6 +22,9 @@ import { onEmojiCreate } from "./events/emojiCreate.js";
 import { onEmojiDelete } from "./events/emojiDelete.js";
 import { onStickerCreate, onStickerDelete } from "./events/stickerUpdate.js";
 import { onWebhooksUpdate } from "./events/webhookUpdate.js";
+import { onVoiceStateUpdate } from "./events/voiceStateUpdate.js";
+import { onInviteCreate, onInviteDelete } from "./events/inviteCreate.js";
+import { onThreadCreate, onThreadDelete } from "./events/threadCreate.js";
 import { onInteractionCreate } from "./events/interactionCreate.js";
 import { onMessageReactionAdd } from "./events/messageReactionAdd.js";
 import { onMessageReactionRemove } from "./events/messageReactionRemove.js";
@@ -43,8 +46,9 @@ export function startBot(): void {
       GatewayIntentBits.GuildMessageReactions,
       GatewayIntentBits.GuildEmojisAndStickers,
       GatewayIntentBits.GuildWebhooks,
-      GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildVoiceStates,
+      GatewayIntentBits.GuildInvites,
+      GatewayIntentBits.MessageContent,
       GatewayIntentBits.DirectMessages,
     ],
     partials: [
@@ -53,6 +57,7 @@ export function startBot(): void {
       Partials.Reaction,
       Partials.GuildMember,
       Partials.User,
+      Partials.ThreadMember,
     ],
   });
 
@@ -78,6 +83,11 @@ export function startBot(): void {
   client.on(Events.GuildStickerCreate, onStickerCreate);
   client.on(Events.GuildStickerDelete, onStickerDelete);
   client.on(Events.WebhooksUpdate, onWebhooksUpdate as any);
+  client.on(Events.VoiceStateUpdate, onVoiceStateUpdate);
+  client.on(Events.InviteCreate, onInviteCreate);
+  client.on(Events.InviteDelete, onInviteDelete);
+  client.on(Events.ThreadCreate, onThreadCreate);
+  client.on(Events.ThreadDelete, onThreadDelete);
   client.on(Events.InteractionCreate, onInteractionCreate);
   client.on(Events.MessageReactionAdd, onMessageReactionAdd);
   client.on(Events.MessageReactionRemove, onMessageReactionRemove);

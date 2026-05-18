@@ -166,22 +166,39 @@ const commands = [
       .addRoleOption(o => o.setName("support_role").setDescription("Support role"))),
 
   // ── LOGGING ───────────────────────────────────────────────────────────────
-  new SlashCommandBuilder().setName("logging").setDescription("Configure logging")
-    .addSubcommand(s => s.setName("setup").setDescription("Set log channel")
-      .addChannelOption(o => o.setName("channel").setDescription("Log channel").setRequired(true)))
-    .addSubcommand(s => s.setName("disable").setDescription("Disable logging"))
-    .addSubcommand(s => s.setName("toggle").setDescription("Toggle specific log events")
-      .addStringOption(o => o.setName("event").setDescription("Event type").setRequired(true).addChoices(
-        { name: "Message Delete", value: "messageDelete" },
-        { name: "Message Edit", value: "messageEdit" },
-        { name: "Member Join", value: "memberJoin" },
-        { name: "Member Leave", value: "memberLeave" },
-        { name: "Bans", value: "memberBan" },
-        { name: "Role Events", value: "roleCreate" },
-        { name: "Channel Events", value: "channelCreate" },
-        { name: "Nickname Changes", value: "nicknameChange" },
+  new SlashCommandBuilder().setName("logging").setDescription("Configure server logging")
+    .addSubcommand(s => s.setName("setup").setDescription("Set the log channel")
+      .addChannelOption(o => o.setName("channel").setDescription("Channel to send logs to").setRequired(true)))
+    .addSubcommand(s => s.setName("status").setDescription("View all log categories and their on/off status"))
+    .addSubcommand(s => s.setName("disable").setDescription("Disable all logging"))
+    .addSubcommand(s => s.setName("toggle").setDescription("Enable or disable a specific log category")
+      .addStringOption(o => o.setName("event").setDescription("Log category").setRequired(true).addChoices(
+        { name: "📨 Message Delete",         value: "messageDelete" },
+        { name: "📨 Message Edit",            value: "messageEdit" },
+        { name: "📥 Member Join",             value: "memberJoin" },
+        { name: "📤 Member Leave",            value: "memberLeave" },
+        { name: "🔨 Member Ban",              value: "memberBan" },
+        { name: "✅ Member Unban",            value: "memberUnban" },
+        { name: "👢 Member Kick",             value: "memberKick" },
+        { name: "⏱️ Member Timeout",          value: "memberTimeout" },
+        { name: "📝 Nickname Change",         value: "nicknameChange" },
+        { name: "🏷️ Member Role Update",      value: "memberRoleChange" },
+        { name: "🔊 Voice Join",              value: "voiceJoin" },
+        { name: "🔇 Voice Leave",             value: "voiceLeave" },
+        { name: "🔀 Voice Move",              value: "voiceMove" },
+        { name: "✨ Role Create",             value: "roleCreate" },
+        { name: "🗑️ Role Delete",             value: "roleDelete" },
+        { name: "⚙️ Role Update",             value: "roleUpdate" },
+        { name: "📢 Channel Create",          value: "channelCreate" },
+        { name: "🗑️ Channel Delete",          value: "channelDelete" },
+        { name: "📝 Channel Update",          value: "channelUpdate" },
+        { name: "⚙️ Server Update",           value: "serverUpdate" },
+        { name: "🔗 Invite Create/Delete",    value: "inviteCreate" },
+        { name: "🧵 Thread Create/Delete",    value: "threadCreate" },
+        { name: "😀 Emoji & Sticker Changes", value: "emojiUpdate" },
+        { name: "🔒 Antinuke Actions",        value: "antinukeAction" },
       ))
-      .addBooleanOption(o => o.setName("enabled").setDescription("Enable or disable").setRequired(true))),
+      .addBooleanOption(o => o.setName("enabled").setDescription("Turn on or off").setRequired(true))),
 
   // ── GIVEAWAY ──────────────────────────────────────────────────────────────
   new SlashCommandBuilder().setName("giveaway").setDescription("Giveaway system")
@@ -667,15 +684,91 @@ export async function handleCommand(interaction: ChatInputCommandInteraction): P
           const ch = interaction.options.getChannel("channel", true);
           await updateGuildSettings(interaction.guild.id, { logChannelId: ch.id });
           await updateLogConfig(interaction.guild.id, { logChannelId: ch.id });
-          await interaction.reply({ embeds: [toggleEmbed("📋  Logging", true, [{ name: "📢  Log Channel", value: `<#${ch.id}>`, inline: true }])] });
+          const cfg = await getLogConfig(interaction.guild.id);
+          const on = (v: boolean) => v ? "✅" : "❌";
+          await interaction.reply({ embeds: [
+            new EmbedBuilder()
+              .setColor(BRAND.color)
+              .setTitle("📋  Server Logs — Configured")
+              .setDescription(`Logs will be sent to <#${ch.id}>`)
+              .addFields(
+                { name: "📨  Messages",
+                  value: `${on(cfg.messageDelete)} Message Delete  ·  ${on(cfg.messageEdit)} Message Edit`,
+                  inline: false },
+                { name: "👥  Members",
+                  value: `${on(cfg.memberJoin)} Join  ·  ${on(cfg.memberLeave)} Leave  ·  ${on(cfg.memberBan)} Ban  ·  ${on(cfg.memberUnban)} Unban\n${on(cfg.memberKick)} Kick  ·  ${on(cfg.memberTimeout)} Timeout  ·  ${on(cfg.nicknameChange)} Nickname  ·  ${on(cfg.memberRoleChange)} Roles`,
+                  inline: false },
+                { name: "🔊  Voice",
+                  value: `${on(cfg.voiceJoin)} Join  ·  ${on(cfg.voiceLeave)} Leave  ·  ${on(cfg.voiceMove)} Move`,
+                  inline: false },
+                { name: "🏷️  Roles",
+                  value: `${on(cfg.roleCreate)} Create  ·  ${on(cfg.roleDelete)} Delete  ·  ${on(cfg.roleUpdate)} Update`,
+                  inline: false },
+                { name: "📁  Channels",
+                  value: `${on(cfg.channelCreate)} Create  ·  ${on(cfg.channelDelete)} Delete  ·  ${on(cfg.channelUpdate)} Update`,
+                  inline: false },
+                { name: "⚙️  Server / Invites / Threads",
+                  value: `${on(cfg.serverUpdate)} Server Update  ·  ${on(cfg.inviteCreate)} Invites  ·  ${on(cfg.threadCreate)} Threads`,
+                  inline: false },
+                { name: "😀  Emoji & Sticker  ·  🔒  Antinuke",
+                  value: `${on(cfg.emojiUpdate)} Emoji/Sticker Changes  ·  ${on(cfg.antinukeAction)} Antinuke Actions`,
+                  inline: false },
+              )
+              .setFooter({ text: `Use /logging toggle to change individual events`, iconURL: BRAND.icon ?? undefined })
+              .setTimestamp(),
+          ] });
+        } else if (sub === "status") {
+          const cfg = await getLogConfig(interaction.guild.id);
+          const on = (v: boolean) => v ? "✅" : "❌";
+          const channelStr = cfg.logChannelId ? `<#${cfg.logChannelId}>` : "`Not set`";
+          await interaction.reply({ embeds: [
+            new EmbedBuilder()
+              .setColor(BRAND.color)
+              .setTitle("📋  Log Status — " + interaction.guild.name)
+              .setDescription(`**Log Channel:** ${channelStr}\n\nUse \`/logging toggle\` to change any event.\nUse \`/logging setup\` to change the channel.`)
+              .addFields(
+                { name: "📨  Messages",
+                  value: `${on(cfg.messageDelete)} Message Delete\n${on(cfg.messageEdit)} Message Edit`,
+                  inline: true },
+                { name: "👥  Members",
+                  value: `${on(cfg.memberJoin)} Join\n${on(cfg.memberLeave)} Leave\n${on(cfg.memberBan)} Ban\n${on(cfg.memberUnban)} Unban\n${on(cfg.memberKick)} Kick\n${on(cfg.memberTimeout)} Timeout\n${on(cfg.nicknameChange)} Nickname\n${on(cfg.memberRoleChange)} Role Update`,
+                  inline: true },
+                { name: "🔊  Voice",
+                  value: `${on(cfg.voiceJoin)} Join\n${on(cfg.voiceLeave)} Leave\n${on(cfg.voiceMove)} Move`,
+                  inline: true },
+                { name: "🏷️  Roles",
+                  value: `${on(cfg.roleCreate)} Create\n${on(cfg.roleDelete)} Delete\n${on(cfg.roleUpdate)} Update`,
+                  inline: true },
+                { name: "📁  Channels",
+                  value: `${on(cfg.channelCreate)} Create\n${on(cfg.channelDelete)} Delete\n${on(cfg.channelUpdate)} Update`,
+                  inline: true },
+                { name: "🌐  Other",
+                  value: `${on(cfg.serverUpdate)} Server Update\n${on(cfg.inviteCreate)} Invites\n${on(cfg.threadCreate)} Threads\n${on(cfg.emojiUpdate)} Emoji/Sticker\n${on(cfg.antinukeAction)} Antinuke`,
+                  inline: true },
+              )
+              .setFooter({ text: "Shonargaon Antinuke  ·  Logging", iconURL: BRAND.icon ?? undefined })
+              .setTimestamp(),
+          ], ephemeral: true });
         } else if (sub === "disable") {
           await updateLogConfig(interaction.guild.id, { logChannelId: undefined });
-          await interaction.reply({ embeds: [toggleEmbed("📋  Logging", false)] });
+          await interaction.reply({ embeds: [toggleEmbed("📋  Logging", false, [{ name: "Status", value: "All logging disabled. Use `/logging setup` to re-enable.", inline: false }])] });
         } else if (sub === "toggle") {
           const event = interaction.options.getString("event", true);
           const enabled = interaction.options.getBoolean("enabled", true);
           await updateLogConfig(interaction.guild.id, { [event]: enabled });
-          await interaction.reply({ embeds: [toggleEmbed(`📋  Log — \`${event}\``, enabled)] });
+          const label: Record<string, string> = {
+            messageDelete: "Message Delete", messageEdit: "Message Edit",
+            memberJoin: "Member Join", memberLeave: "Member Leave",
+            memberBan: "Member Ban", memberUnban: "Member Unban",
+            memberKick: "Member Kick", memberTimeout: "Member Timeout",
+            nicknameChange: "Nickname Change", memberRoleChange: "Member Role Update",
+            voiceJoin: "Voice Join", voiceLeave: "Voice Leave", voiceMove: "Voice Move",
+            roleCreate: "Role Create", roleDelete: "Role Delete", roleUpdate: "Role Update",
+            channelCreate: "Channel Create", channelDelete: "Channel Delete", channelUpdate: "Channel Update",
+            serverUpdate: "Server Update", inviteCreate: "Invite Events",
+            threadCreate: "Thread Events", emojiUpdate: "Emoji & Sticker", antinukeAction: "Antinuke Actions",
+          };
+          await interaction.reply({ embeds: [toggleEmbed(`📋  Log — ${label[event] ?? event}`, enabled)] });
         }
         break;
       }
