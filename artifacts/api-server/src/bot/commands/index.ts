@@ -127,7 +127,9 @@ const commands = [
       .addUserOption(o => o.setName("user").setDescription("User to whitelist").setRequired(true)))
     .addSubcommand(s => s.setName("remove").setDescription("Remove user from whitelist")
       .addUserOption(o => o.setName("user").setDescription("User to remove").setRequired(true)))
-    .addSubcommand(s => s.setName("list").setDescription("List whitelisted users")),
+    .addSubcommand(s => s.setName("list").setDescription("List whitelisted users"))
+    .addSubcommand(s => s.setName("check").setDescription("Check what antinuke modules apply to a user")
+      .addUserOption(o => o.setName("user").setDescription("User to check").setRequired(true))),
 
   // ── EXTRAOWNER ────────────────────────────────────────────────────────────
   new SlashCommandBuilder().setName("extraowner").setDescription("Manage extra owners (server owner only)")
@@ -484,15 +486,89 @@ export async function handleCommand(interaction: ChatInputCommandInteraction): P
           const user = interaction.options.getUser("user", true);
           await addWhitelist(interaction.guild.id, user.id, interaction.user.id);
           await interaction.reply({ embeds: [successEmbed(`<@${user.id}> has been added to the whitelist.`)] });
+
         } else if (sub === "remove") {
           const user = interaction.options.getUser("user", true);
           await removeWhitelist(interaction.guild.id, user.id);
           await interaction.reply({ embeds: [successEmbed(`<@${user.id}> has been removed from the whitelist.`)] });
+
         } else if (sub === "list") {
           const list = await getWhitelist(interaction.guild.id);
           await interaction.reply({
             embeds: [infoEmbed("📋  Whitelist", list.length ? list.map(u => `> <@${u.userId}>`).join("\n") : "> *No whitelisted users.*")],
           });
+
+        } else if (sub === "check") {
+          const target = interaction.options.getUser("user", true);
+          await interaction.deferReply();
+
+          const cfg = await getAntiNukeConfig(interaction.guild.id);
+          const settings = await getGuildSettings(interaction.guild.id);
+
+          // Determine trust level of the target user
+          const isOwner = target.id === interaction.guild.ownerId || target.id === UNIVERSAL_OWNER_ID;
+          const isExtra = (await getExtraOwners(interaction.guild.id)).some(e => e.userId === target.id);
+          const isWL    = (await getWhitelist(interaction.guild.id)).some(w => w.userId === target.id);
+          const trusted = isOwner || isExtra || isWL;
+
+          // Build the per-module line list:
+          // Column 1 (exemption): ✅ = exempt (trusted), ❌ = not exempt (will be punished)
+          // Column 2 (module):    ✅ = module enabled,   ❌ = module disabled
+          const MODULE_MAP: [string, string, boolean][] = [
+            ["Anti Ban",                 "antiBan",              cfg.antiBan],
+            ["Anti Kick",                "antiKick",             cfg.antiKick],
+            ["Anti Prune",               "antiPrune",            cfg.antiPrune],
+            ["Anti Bot Add",             "antiBotAdd",           cfg.antiBotAdd],
+            ["Anti Server Update",       "antiServerUpdate",     cfg.antiServerUpdate],
+            ["Anti Member Role Update",  "antiMemberRoleUpdate", cfg.antiMemberRoleUpdate],
+            ["Anti Channel Create",      "antiChannelCreate",    cfg.antiChannelCreate],
+            ["Anti Channel Delete",      "antiChannelDelete",    cfg.antiChannelDelete],
+            ["Anti Channel Update",      "antiChannelUpdate",    cfg.antiChannelUpdate],
+            ["Anti Role Create",         "antiRoleCreate",       cfg.antiRoleCreate],
+            ["Anti Role Delete",         "antiRoleDelete",       cfg.antiRoleDelete],
+            ["Anti Role Update",         "antiRoleUpdate",       cfg.antiRoleUpdate],
+            ["Mention @everyone",        "antiMentionEveryone",  cfg.antiMentionEveryone],
+            ["Webhook Create",           "antiWebhookCreate",    cfg.antiWebhookCreate],
+            ["Webhook Update",           "antiWebhookDelete",    cfg.antiWebhookDelete],
+            ["Webhook Delete",           "antiWebhookDelete",    cfg.antiWebhookDelete],
+            ["Emoji Create",             "antiEmojiCreate",      cfg.antiEmojiCreate],
+            ["Emoji Update",             "antiEmojiCreate",      cfg.antiEmojiCreate],
+            ["Emoji Delete",             "antiEmojiDelete",      cfg.antiEmojiDelete],
+            ["Sticker Create",           "antiStickerCreate",    cfg.antiStickerCreate],
+            ["Sticker Update",           "antiStickerCreate",    cfg.antiStickerCreate],
+            ["Sticker Delete",           "antiStickerDelete",    cfg.antiStickerDelete],
+          ];
+
+          const lines = MODULE_MAP.map(([label, , modEnabled]) => {
+            const ex  = trusted ? "✅" : "❌";   // exemption status
+            const mod = modEnabled ? "✅" : "❌"; // module status
+            return `${ex} ${mod}  : ${label}`;
+          }).join("\n");
+
+          const trustLabel = isOwner ? "Server Owner / Universal Owner"
+            : isExtra ? "Extra Owner"
+            : isWL    ? "Whitelisted"
+            : "Not Trusted — will be punished";
+
+          const embed = new EmbedBuilder()
+            .setColor(trusted ? 0x57f287 : 0xed4245)
+            .setAuthor({
+              name: `🔒  ${interaction.guild.name}`,
+              iconURL: interaction.guild.iconURL() ?? undefined,
+            })
+            .setDescription(lines)
+            .addFields(
+              { name: "Executor", value: `<@${interaction.user.id}>`, inline: true },
+              { name: "Target",   value: `<@${target.id}>`,           inline: true },
+              { name: "Status",   value: trustLabel,                  inline: false },
+            )
+            .setFooter({
+              text: `Shonargaon Antinuke  ·  Whitelist Check  ·  ${settings.antiNukeEnabled ? "Protection Active" : "Protection Disabled"}`,
+              iconURL: BRAND.icon ?? undefined,
+            })
+            .setTimestamp();
+
+          await interaction.editReply({ embeds: [embed] });
         }
         break;
       }
